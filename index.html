@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#10161C">
 <title>Cerebro digital · Centro Odontológico Laura Fernández</title>
 <style>
   :root{
@@ -63,6 +64,26 @@
   .starter{display:inline-block;margin:0 6px 8px 0;padding:6px 12px;border-radius:18px;border:1px solid var(--line);
     color:var(--muted);font-size:13px;cursor:pointer;background:var(--panel)}
   .typing{color:var(--muted);font-size:13px}
+
+  /* avatar del cerebro */
+  .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 32% 28%, #232D36, #161D24);border:1px solid rgba(200,169,110,.5)}
+  .avatar svg{width:62%;height:62%}
+  .avatar.think{animation:latido 1.5s ease-in-out infinite}
+  @keyframes latido{
+    0%,100%{box-shadow:0 0 0 0 rgba(200,169,110,.35)}
+    50%{box-shadow:0 0 0 8px rgba(200,169,110,0)}
+  }
+  .msg.a{gap:8px;align-items:flex-end}
+
+  /* portada del chat */
+  #hero{text-align:center;padding:7vh 10px 18px}
+  #hero .avatar{width:74px;height:74px;margin:0 auto 16px;border-width:1.5px;
+    box-shadow:0 0 34px rgba(200,169,110,.14)}
+  #hero h2{font-family:Georgia,serif;font-weight:normal;font-size:22px;margin-bottom:6px}
+  #hero p{color:var(--muted);font-size:13.5px;max-width:340px;margin:0 auto 22px;line-height:1.55}
+  #hero .starter{margin:0 4px 8px}
+
   .voteRow{display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--muted);font-size:12px}
   .voteRow button{background:none;border:1px solid var(--line);border-radius:8px;
     padding:2px 10px;cursor:pointer;font-size:13px;color:var(--text)}
@@ -106,6 +127,25 @@
   #lector .cuerpo li{margin-bottom:5px}
   #lector .cuerpo .sp{height:8px}
   #lector .fecha{color:var(--muted);font-size:12px;margin-top:16px}
+
+  /* ---------- móvil ---------- */
+  .askRow{bottom:max(12px, env(safe-area-inset-bottom))}
+  @media (max-width:600px){
+    .wrap{padding:10px 12px calc(30px + env(safe-area-inset-bottom))}
+    header h1{font-size:16.5px}
+    header small{font-size:10.5px}
+    input,textarea,select,.askRow input{font-size:16px} /* evita el zoom automático de iOS */
+    nav{margin-bottom:14px}
+    nav button{padding:11px 12px;font-size:14px}
+    .bubble{max-width:90%;font-size:15px}
+    .askRow button{width:42px;height:42px}
+    #hero{padding:5vh 6px 14px}
+    #lector{padding:16px 15px}
+    #lector h3{font-size:19px}
+    .row{flex-wrap:wrap}
+    .row .t{white-space:normal;flex-basis:100%}
+    .row small{margin-left:auto}
+  }
 </style>
 </head>
 <body>
@@ -138,9 +178,14 @@
   </nav>
 
   <section id="s-ask" class="on">
-    <div id="starters">
-      <span class="starter">¿Cómo se sigue un presupuesto pendiente?</span>
-      <span class="starter">¿Qué hago si entra una urgencia?</span>
+    <div id="hero">
+      <div class="avatar" id="heroAvatar"></div>
+      <h2 id="heroHola">Hola.</h2>
+      <p>Pregúntame cualquier duda del funcionamiento de la clínica. Respondo solo con lo documentado, citando siempre de qué protocolo lo saco.</p>
+      <div id="starters">
+        <span class="starter">¿Cuándo es higiene y cuándo raspado?</span>
+        <span class="starter">¿Quién hace los mantenimientos periodontales?</span>
+      </div>
     </div>
     <div id="chatLog"></div>
     <div class="askRow">
@@ -190,8 +235,9 @@
   <section id="s-dudas">
     <h2 class="sec">Dudas del equipo</h2>
     <div class="bar">
-      <button class="btn" id="vPend">Sin respuesta</button>
       <button class="btn ghost" id="vTodas">Todas</button>
+      <button class="btn" id="vPend">Sin respuesta</button>
+      <button class="btn ghost" id="vMal">Respuesta no válida</button>
     </div>
     <p class="muted" id="dudasHint" style="margin-bottom:14px"></p>
     <div id="listaDudas"></div>
@@ -208,6 +254,22 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let yo = null, protocolos = [], historial = [];
 
 const $ = id => document.getElementById(id);
+
+/* avatar del cerebro: constelación de nodos en el color acento */
+const AVATAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#C8A96E" stroke-width="1.5" stroke-linecap="round">
+  <circle cx="12" cy="4.6" r="1.7" fill="#C8A96E" stroke="none"/>
+  <circle cx="4.9" cy="12.8" r="1.7" fill="#C8A96E" stroke="none"/>
+  <circle cx="19.1" cy="12.8" r="1.7" fill="#C8A96E" stroke="none"/>
+  <circle cx="12" cy="19.6" r="1.7" fill="#C8A96E" stroke="none"/>
+  <path d="M10.9 5.9 6 11.5M13.1 5.9l4.9 5.6M6.2 14.1l4.6 4.3M17.8 14.1l-4.6 4.3M12 6.3v11.2"/>
+</svg>`;
+function avatar(extra) {
+  const d = document.createElement('div');
+  d.className = 'avatar' + (extra ? ' ' + extra : '');
+  d.innerHTML = AVATAR_SVG;
+  return d;
+}
+$('heroAvatar').innerHTML = AVATAR_SVG;
 
 /* ---------- login ---------- */
 $('entrar').onclick = async () => {
@@ -231,6 +293,7 @@ async function arrancar() {
   $('login').style.display = 'none';
   $('app').style.display = 'block';
   $('quien').textContent = yo.nombre;
+  $('heroHola').textContent = 'Hola, ' + yo.nombre.split(' ')[0] + '.';
   if (yo.rol === 'admin' || yo.rol === 'editor') {
     document.querySelectorAll('.soloAdmin').forEach(b => b.style.display = '');
   }
@@ -335,15 +398,18 @@ function burbuja(rol, texto, fuentes, dudaId) {
     v.appendChild(t); v.appendChild(si); v.appendChild(no);
     b.appendChild(v);
   }
+  if (rol !== 'user') row.appendChild(avatar());
   row.appendChild(b); $('chatLog').appendChild(row);
   row.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 async function preguntar(texto) {
   const q = (texto || $('q').value).trim(); if (!q || $('send').disabled) return;
-  $('q').value = ''; $('send').disabled = true; $('starters').style.display = 'none';
+  $('q').value = ''; $('send').disabled = true; $('hero').style.display = 'none';
   burbuja('user', q);
-  const t = document.createElement('div'); t.className = 'typing'; t.textContent = 'Consultando el cerebro…';
-  $('chatLog').appendChild(t);
+  const t = document.createElement('div'); t.className = 'msg a';
+  t.appendChild(avatar('think'));
+  const tt = document.createElement('div'); tt.className = 'typing'; tt.textContent = 'Consultando el cerebro…';
+  t.appendChild(tt); $('chatLog').appendChild(t);
   try {
     const { data: { session } } = await sb.auth.getSession();
     const r = await fetch(SUPABASE_URL + '/functions/v1/preguntar', {
@@ -435,17 +501,23 @@ $('borrar').onclick = async () => {
 let vistaDudas = 'pendientes';
 $('vPend').onclick = () => { vistaDudas = 'pendientes'; cargarDudas(); };
 $('vTodas').onclick = () => { vistaDudas = 'todas'; cargarDudas(); };
+$('vMal').onclick = () => { vistaDudas = 'mal'; cargarDudas(); };
 
 async function cargarDudas() {
   const pend = vistaDudas === 'pendientes';
   $('vPend').className = pend ? 'btn' : 'btn ghost';
-  $('vTodas').className = pend ? 'btn ghost' : 'btn';
+  $('vTodas').className = vistaDudas === 'todas' ? 'btn' : 'btn ghost';
+  $('vMal').className = vistaDudas === 'mal' ? 'btn' : 'btn ghost';
   $('dudasHint').textContent = pend
     ? 'Lo que el cerebro no supo responder: cada línea es un protocolo que falta por escribir.'
-    : 'Todo lo que pregunta el equipo, lo respondiera el cerebro o no.';
+    : (vistaDudas === 'mal'
+      ? 'Respuestas votadas con 👎 por el equipo: toca cada una para leer qué contestó y afinar el protocolo.'
+      : 'Todo lo que pregunta el equipo, lo respondiera el cerebro o no.');
 
   let q = sb.from('dudas').select('*').order('creado_en', { ascending: false });
-  q = pend ? q.eq('sin_respuesta', true).eq('resuelta', false).limit(60) : q.limit(120);
+  if (pend) q = q.eq('sin_respuesta', true).eq('resuelta', false).limit(60);
+  else if (vistaDudas === 'mal') q = q.eq('util', false).limit(120);
+  else q = q.limit(120);
   const { data } = await q;
 
   const nombres = {};
@@ -456,7 +528,9 @@ async function cargarDudas() {
   if (!data || !data.length) {
     box.innerHTML = pend
       ? '<p class="empty">Ninguna duda pendiente. El cerebro responde a todo.</p>'
-      : '<p class="empty">Todavía nadie ha preguntado nada.</p>';
+      : (vistaDudas === 'mal'
+        ? '<p class="empty">Ninguna respuesta mal valorada. Buena señal.</p>'
+        : '<p class="empty">Todavía nadie ha preguntado nada.</p>');
     return;
   }
   data.forEach(d => {
