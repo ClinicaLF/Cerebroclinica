@@ -251,6 +251,18 @@
       </div>
       <p class="muted" id="sugGenOk" style="display:none;margin-top:10px">Enviada. Dirección la revisará — gracias.</p>
     </div>
+    <div id="incBox" style="margin-top:12px">
+      <button class="btn ghost" id="incBtn">⚠ Algo que se repite</button>
+      <div id="incForm" style="display:none;margin-top:10px">
+        <textarea id="incTxt" style="min-height:90px" placeholder="¿Qué es lo que pasa una y otra vez? Describe el hecho, sin nombres."></textarea>
+        <div class="bar">
+          <button class="btn" id="incEnviar">Enviar a dirección</button>
+          <button class="btn ghost" id="incCancelar">Cancelar</button>
+        </div>
+        <p class="err" id="incErr"></p>
+      </div>
+      <p class="muted" id="incOk" style="display:none;margin-top:10px">Registrada. Si se repite, es que hay que arreglarlo — gracias.</p>
+    </div>
   </section>
 
   <section id="s-form">
@@ -342,6 +354,9 @@
     </div>
     <p class="muted" style="margin-bottom:14px">Mejoras y huecos detectados por el equipo. Al aceptar una, aplícala tú al protocolo desde Gestionar.</p>
     <div id="listaSug"></div>
+    <h2 class="sec" style="margin-top:28px">⚠ Algo que se repite</h2>
+    <p class="muted" style="margin-bottom:14px">Patrones reportados por el equipo, cada uno sin ver los de los demás: si varias personas escriben lo mismo, ahí es donde duele.</p>
+    <div id="listaInc"></div>
   </section>
 </div>
 
@@ -463,7 +478,7 @@ function abrir(id) {
   $('lCuerpo').innerHTML = md(p.contenido);
   $('lFecha').textContent = 'Actualizado el ' + new Date(p.actualizado_en).toLocaleDateString('es-ES');
   $('fichas').style.display = 'none'; $('buscar').parentElement.style.display = 'none';
-  $('sugGeneralBox').style.display = 'none';
+  $('sugGeneralBox').style.display = 'none'; $('incBox').style.display = 'none';
   $('sugForm').style.display = 'none'; $('sugOk').style.display = 'none';
   $('sugBtn').style.display = ''; $('sugTxt').value = '';
   $('lector').style.display = 'block';
@@ -472,7 +487,7 @@ function abrir(id) {
 $('volver').onclick = () => {
   $('lector').style.display = 'none';
   $('fichas').style.display = ''; $('buscar').parentElement.style.display = '';
-  $('sugGeneralBox').style.display = '';
+  $('sugGeneralBox').style.display = ''; $('incBox').style.display = '';
 };
 
 /* ---------- chat ---------- */
@@ -826,7 +841,7 @@ $('exEntregar').onclick = async () => {
 };
 
 /* ---------- sugerencias: enviar (equipo) ---------- */
-function wireSug(pref, getProtocoloId) {
+function wireSug(pref, enviarFn) {
   $(pref + 'Btn').onclick = () => {
     $(pref + 'Form').style.display = 'block';
     $(pref + 'Btn').style.display = 'none';
@@ -840,12 +855,10 @@ function wireSug(pref, getProtocoloId) {
   };
   $(pref + 'Enviar').onclick = async () => {
     const texto = $(pref + 'Txt').value.trim();
-    if (!texto) { $(pref + 'Err').textContent = 'Escribe la sugerencia.'; return; }
+    if (!texto) { $(pref + 'Err').textContent = 'Escribe el texto.'; return; }
     $(pref + 'Err').textContent = '';
     $(pref + 'Enviar').disabled = true;
-    const { error } = await sb.from('sugerencias').insert({
-      texto, protocolo_id: getProtocoloId(), usuario_id: yo.id
-    });
+    const { error } = await enviarFn(texto);
     $(pref + 'Enviar').disabled = false;
     if (error) { $(pref + 'Err').textContent = 'No se ha podido enviar ahora mismo.'; return; }
     $(pref + 'Form').style.display = 'none'; $(pref + 'Txt').value = '';
@@ -853,8 +866,9 @@ function wireSug(pref, getProtocoloId) {
     $(pref + 'Ok').style.display = 'block';
   };
 }
-wireSug('sug', () => lectorId);
-wireSug('sugGen', () => null);
+wireSug('sug', texto => sb.from('sugerencias').insert({ texto, protocolo_id: lectorId, usuario_id: yo.id }));
+wireSug('sugGen', texto => sb.from('sugerencias').insert({ texto, protocolo_id: null, usuario_id: yo.id }));
+wireSug('inc', texto => sb.from('incidencias').insert({ texto, usuario_id: yo.id }));
 
 /* ---------- sugerencias: cola de aprobación (admin) ---------- */
 let vistaSug = 'pendientes';
@@ -903,6 +917,30 @@ async function cargarSugerencias() {
       }
     }
     box.appendChild(row);
+  });
+
+  /* patrones reportados (incidencias), con el mismo filtro Pendientes/Todas */
+  let qi = sb.from('incidencias').select('*').order('creado_en', { ascending: false }).limit(120);
+  if (pend) qi = qi.eq('estado', 'pendiente');
+  const { data: incs } = await qi;
+  const bi = $('listaInc'); bi.innerHTML = '';
+  if (!incs || !incs.length) {
+    bi.innerHTML = pend
+      ? '<p class="empty">Ningún patrón pendiente.</p>'
+      : '<p class="empty">Todavía no hay patrones reportados.</p>';
+  }
+  (incs || []).forEach(s => {
+    const row = document.createElement('div'); row.className = 'row';
+    const cuando = new Date(s.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    row.innerHTML = `<span class="t" style="white-space:normal">${s.texto}</span>
+      ${s.estado === 'tratada' ? '<span class="tag pub">tratada</span>' : ''}
+      <small>${nombres[s.usuario_id] || '—'} · ${cuando}</small>`;
+    if (s.estado === 'pendiente') {
+      const b = document.createElement('button'); b.textContent = 'Tratada';
+      b.onclick = async () => { await sb.from('incidencias').update({ estado: 'tratada' }).eq('id', s.id); cargarSugerencias(); };
+      row.appendChild(b);
+    }
+    bi.appendChild(row);
   });
 }
 
