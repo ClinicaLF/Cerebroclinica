@@ -12,10 +12,10 @@
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;min-height:100vh}
-  .wrap{max-width:900px;margin:0 auto;padding:16px 18px 40px}
+  .wrap{max-width:900px;margin:0 auto;padding:calc(16px + env(safe-area-inset-top)) 18px 40px}
 
   /* login */
-  #login{max-width:360px;margin:14vh auto;padding:0 20px}
+  #login{max-width:360px;margin:10vh auto 0;padding:calc(env(safe-area-inset-top) + 4vh) 20px 40px}
   .mark{height:62px;margin-bottom:20px}
   .mark img{height:100%;width:auto;display:block}
   #login h1{font-family:Georgia,serif;font-weight:normal;font-size:23px;margin-bottom:4px}
@@ -69,6 +69,7 @@
   .avatar{width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(circle at 32% 28%, #232D36, #161D24);border:1px solid rgba(200,169,110,.5)}
   .avatar svg{width:62%;height:62%}
+  .avatar img{height:60%;width:auto;display:block}
   .avatar.think{animation:latido 1.5s ease-in-out infinite}
   @keyframes latido{
     0%,100%{box-shadow:0 0 0 0 rgba(200,169,110,.35)}
@@ -131,7 +132,7 @@
   /* ---------- móvil ---------- */
   .askRow{bottom:max(12px, env(safe-area-inset-bottom))}
   @media (max-width:600px){
-    .wrap{padding:10px 12px calc(30px + env(safe-area-inset-bottom))}
+    .wrap{padding:calc(10px + env(safe-area-inset-top)) 12px calc(30px + env(safe-area-inset-bottom))}
     header h1{font-size:16.5px}
     header small{font-size:10.5px}
     input,textarea,select,.askRow input{font-size:16px} /* evita el zoom automático de iOS */
@@ -255,21 +256,15 @@ let yo = null, protocolos = [], historial = [];
 
 const $ = id => document.getElementById(id);
 
-/* avatar del cerebro: constelación de nodos en el color acento */
-const AVATAR_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="#C8A96E" stroke-width="1.5" stroke-linecap="round">
-  <circle cx="12" cy="4.6" r="1.7" fill="#C8A96E" stroke="none"/>
-  <circle cx="4.9" cy="12.8" r="1.7" fill="#C8A96E" stroke="none"/>
-  <circle cx="19.1" cy="12.8" r="1.7" fill="#C8A96E" stroke="none"/>
-  <circle cx="12" cy="19.6" r="1.7" fill="#C8A96E" stroke="none"/>
-  <path d="M10.9 5.9 6 11.5M13.1 5.9l4.9 5.6M6.2 14.1l4.6 4.3M17.8 14.1l-4.6 4.3M12 6.3v11.2"/>
-</svg>`;
+/* avatar del cerebro: el símbolo de la clínica (reutiliza el logo de la cabecera) */
+const AVATAR_IMG = `<img src="${document.querySelector('header .m img').src}" alt="">`;
 function avatar(extra) {
   const d = document.createElement('div');
   d.className = 'avatar' + (extra ? ' ' + extra : '');
-  d.innerHTML = AVATAR_SVG;
+  d.innerHTML = AVATAR_IMG;
   return d;
 }
-$('heroAvatar').innerHTML = AVATAR_SVG;
+$('heroAvatar').innerHTML = AVATAR_IMG;
 
 /* ---------- login ---------- */
 $('entrar').onclick = async () => {
