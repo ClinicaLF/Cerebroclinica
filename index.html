@@ -135,6 +135,18 @@
   #lector .cuerpo .sp{height:8px}
   #lector .fecha{color:var(--muted);font-size:12px;margin-top:16px}
 
+  /* formación / exámenes */
+  .exQ{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px}
+  .exQ h4{font-size:14.5px;font-weight:600;margin-bottom:10px;line-height:1.45}
+  .exQ label{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;margin:0 0 7px;text-transform:none;letter-spacing:0;font-size:14px;
+    color:var(--text);cursor:pointer;line-height:1.4}
+  .exQ label:has(input:checked){border-color:var(--accent);background:rgba(200,169,110,.08)}
+  .exQ input{width:auto;margin:3px 0 0;padding:0;flex:none}
+  .notaBadge{font-size:13px;padding:2px 10px;border-radius:12px;border:1px solid var(--line);flex:none;font-weight:600}
+  .notaBadge.ok{color:var(--ok);border-color:rgba(127,168,90,.5)}
+  .notaBadge.ko{color:var(--danger);border-color:rgba(192,57,43,.5)}
+
   /* ---------- móvil ---------- */
   .askRow{bottom:max(12px, env(safe-area-inset-bottom))}
   @media (max-width:600px){
@@ -180,6 +192,7 @@
   <nav>
     <button data-t="ask" class="on">Preguntar</button>
     <button data-t="docs">Protocolos</button>
+    <button data-t="form">Formación</button>
     <button data-t="admin" class="soloAdmin" style="display:none">Gestionar</button>
     <button data-t="dudas" class="soloAdmin" style="display:none">Dudas</button>
     <button data-t="sug" class="soloAdmin" style="display:none">Sugerencias</button>
@@ -237,6 +250,35 @@
         <p class="err" id="sugGenErr"></p>
       </div>
       <p class="muted" id="sugGenOk" style="display:none;margin-top:10px">Enviada. Dirección la revisará — gracias.</p>
+    </div>
+  </section>
+
+  <section id="s-form">
+    <div id="formLista">
+      <h2 class="sec">Formación</h2>
+      <p class="muted" style="margin-bottom:14px">Examen de 15 preguntas por protocolo. Se aprueba con un 8. Al terminar verás solo tu nota: si no apruebas, toca releer y volver a intentarlo.</p>
+      <div id="formProtos"></div>
+      <p class="err" id="formListaErr"></p>
+      <h2 class="sec" style="margin-top:26px">Mis intentos</h2>
+      <div id="misIntentos"></div>
+      <div id="resEquipoBox" style="display:none">
+        <h2 class="sec" style="margin-top:26px">Resultados del equipo</h2>
+        <div id="resEquipo"></div>
+      </div>
+    </div>
+    <div id="formExamen" style="display:none">
+      <button class="btn ghost" id="exVolver" style="margin-bottom:16px">← Salir sin entregar</button>
+      <h2 class="sec" id="exTitulo"></h2>
+      <div id="exPreguntas"></div>
+      <div class="bar" style="margin-top:20px">
+        <button class="btn" id="exEntregar">Entregar examen</button>
+      </div>
+      <p class="err" id="exErr"></p>
+    </div>
+    <div id="formResultado" style="display:none;text-align:center;padding:8vh 10px">
+      <div id="exNota" style="font-family:Georgia,serif;font-size:58px;line-height:1;margin-bottom:10px"></div>
+      <p id="exAccion" class="muted" style="max-width:340px;margin:0 auto 26px;font-size:15px"></p>
+      <button class="btn" id="exOk">Volver a Formación</button>
     </div>
   </section>
 
@@ -347,6 +389,7 @@ document.querySelectorAll('nav button').forEach(b => {
     $('s-' + b.dataset.t).classList.add('on');
     if (b.dataset.t === 'dudas') cargarDudas();
     if (b.dataset.t === 'sug') cargarSugerencias();
+    if (b.dataset.t === 'form') cargarFormacion();
   };
 });
 
@@ -582,6 +625,132 @@ $('borrar').onclick = async () => {
   if (!editando || !confirm('¿Eliminar este protocolo del cerebro?')) return;
   await sb.from('protocolos').delete().eq('id', editando);
   $('cancelar').click(); await cargarProtocolos();
+};
+
+/* ---------- formación / exámenes ---------- */
+let examenActual = null;
+
+const fNota = n => Number(n).toLocaleString('es-ES', { maximumFractionDigits: 1 });
+
+async function llamarExamen(cuerpo) {
+  const { data: { session } } = await sb.auth.getSession();
+  const r = await fetch(SUPABASE_URL + '/functions/v1/examen', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + session.access_token,
+      'apikey': SUPABASE_ANON_KEY
+    },
+    body: JSON.stringify(cuerpo)
+  });
+  return r.json();
+}
+
+async function cargarFormacion() {
+  $('formLista').style.display = 'block';
+  $('formExamen').style.display = 'none';
+  $('formResultado').style.display = 'none';
+  $('formListaErr').textContent = '';
+
+  const box = $('formProtos'); box.innerHTML = '';
+  const pubs = protocolos.filter(p => p.publicado);
+  if (!pubs.length) box.innerHTML = '<p class="empty">Aún no hay protocolos publicados.</p>';
+  pubs.forEach(p => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<span class="t">${p.titulo}</span><span class="tag">${p.area}</span>`;
+    const b = document.createElement('button'); b.textContent = 'Hacer examen';
+    b.onclick = () => empezarExamen(p);
+    row.appendChild(b); box.appendChild(row);
+  });
+
+  const nombresTitulo = id => (protocolos.find(x => x.id === id) || {}).titulo || '—';
+
+  const { data: mios } = await sb.from('examen_intentos').select('*')
+    .eq('usuario_id', yo.id).order('creado_en', { ascending: false }).limit(30);
+  const mi = $('misIntentos'); mi.innerHTML = '';
+  if (!mios || !mios.length) mi.innerHTML = '<p class="empty">Todavía no has hecho ningún examen.</p>';
+  (mios || []).forEach(t => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<span class="t">${nombresTitulo(t.protocolo_id)}</span>
+      <span class="notaBadge ${t.nota >= 8 ? 'ok' : 'ko'}">${fNota(t.nota)}</span>
+      <small>${new Date(t.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</small>`;
+    mi.appendChild(row);
+  });
+
+  if (yo.rol === 'admin') {
+    $('resEquipoBox').style.display = 'block';
+    const nombres = {};
+    const { data: perfs } = await sb.from('perfiles').select('id, nombre');
+    (perfs || []).forEach(p => nombres[p.id] = p.nombre);
+    const { data: todos } = await sb.from('examen_intentos').select('*')
+      .order('creado_en', { ascending: false }).limit(200);
+    const re = $('resEquipo'); re.innerHTML = '';
+    if (!todos || !todos.length) re.innerHTML = '<p class="empty">Nadie ha hecho exámenes todavía.</p>';
+    (todos || []).forEach(t => {
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = `<span class="t">${nombres[t.usuario_id] || '—'} · ${nombresTitulo(t.protocolo_id)}</span>
+        <span class="notaBadge ${t.nota >= 8 ? 'ok' : 'ko'}">${fNota(t.nota)}</span>
+        <small>${new Date(t.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</small>`;
+      re.appendChild(row);
+    });
+  }
+}
+
+async function empezarExamen(p) {
+  $('formListaErr').textContent = '';
+  try {
+    const d = await llamarExamen({ accion: 'obtener', protocolo_id: p.id });
+    if (d.error) { $('formListaErr').textContent = d.error; return; }
+    examenActual = { protocolo_id: p.id, titulo: p.titulo };
+    $('exTitulo').textContent = 'Examen · ' + p.titulo;
+    const box = $('exPreguntas'); box.innerHTML = '';
+    d.preguntas.forEach((q, i) => {
+      const div = document.createElement('div'); div.className = 'exQ';
+      div.dataset.qid = q.id;
+      const ops = q.opciones.map(o =>
+        `<label><input type="radio" name="q${i}" value="${o.replace(/"/g, '&quot;')}"><span>${o}</span></label>`
+      ).join('');
+      div.innerHTML = `<h4>${i + 1}. ${q.pregunta}</h4>${ops}`;
+      box.appendChild(div);
+    });
+    $('exErr').textContent = '';
+    $('formLista').style.display = 'none';
+    $('formExamen').style.display = 'block';
+    scrollTo({ top: 0 });
+  } catch (e) {
+    $('formListaErr').textContent = 'No se ha podido cargar el examen. Inténtalo de nuevo.';
+  }
+}
+
+$('exVolver').onclick = () => cargarFormacion();
+$('exOk').onclick = () => cargarFormacion();
+
+$('exEntregar').onclick = async () => {
+  const divs = [...document.querySelectorAll('#exPreguntas .exQ')];
+  const respuestas = [];
+  let faltan = 0;
+  divs.forEach(d => {
+    const sel = d.querySelector('input:checked');
+    if (!sel) faltan++;
+    else respuestas.push({ id: d.dataset.qid, respuesta: sel.value });
+  });
+  if (faltan) { $('exErr').textContent = 'Te faltan ' + faltan + ' preguntas por responder.'; return; }
+  $('exEntregar').disabled = true; $('exErr').textContent = '';
+  try {
+    const d = await llamarExamen({ accion: 'corregir', protocolo_id: examenActual.protocolo_id, respuestas });
+    if (d.error) { $('exErr').textContent = d.error; }
+    else {
+      $('exNota').textContent = fNota(d.nota);
+      $('exNota').style.color = d.nota >= 8 ? 'var(--ok)' : 'var(--danger)';
+      $('exAccion').textContent = d.mensaje;
+      $('formExamen').style.display = 'none';
+      $('formResultado').style.display = 'block';
+      scrollTo({ top: 0 });
+    }
+  } catch (e) {
+    $('exErr').textContent = 'No se ha podido entregar. Inténtalo de nuevo.';
+  }
+  $('exEntregar').disabled = false;
 };
 
 /* ---------- sugerencias: enviar (equipo) ---------- */
