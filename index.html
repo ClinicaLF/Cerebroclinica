@@ -255,8 +255,11 @@
 
   <section id="s-form">
     <div id="formLista">
-      <h2 class="sec">Formación</h2>
-      <p class="muted" style="margin-bottom:14px">Examen de 15 preguntas por protocolo. Se aprueba con un 8. Al terminar verás solo tu nota: si no apruebas, toca releer y volver a intentarlo.</p>
+      <h2 class="sec">Tu itinerario</h2>
+      <p class="muted" id="itiHint" style="margin-bottom:14px"></p>
+      <div id="itiPasos"></div>
+      <h2 class="sec" style="margin-top:26px">Todos los exámenes</h2>
+      <p class="muted" style="margin-bottom:14px">15 preguntas por protocolo. Se aprueba con un 8. Al terminar verás tu nota y los temas a repasar.</p>
       <div id="formProtos"></div>
       <p class="err" id="formListaErr"></p>
       <h2 class="sec" style="margin-top:26px">Mis intentos</h2>
@@ -277,7 +280,8 @@
     </div>
     <div id="formResultado" style="display:none;text-align:center;padding:8vh 10px">
       <div id="exNota" style="font-family:Georgia,serif;font-size:58px;line-height:1;margin-bottom:10px"></div>
-      <p id="exAccion" class="muted" style="max-width:340px;margin:0 auto 26px;font-size:15px"></p>
+      <p id="exAccion" class="muted" style="max-width:340px;margin:0 auto 10px;font-size:15px"></p>
+      <p id="exRepasar" style="max-width:340px;margin:0 auto 26px;font-size:14px;color:var(--accent)"></p>
       <button class="btn" id="exOk">Volver a Formación</button>
     </div>
   </section>
@@ -295,6 +299,20 @@
       <input id="fA" type="text" placeholder="Ej.: Protocolos clínicos">
       <label>Contenido</label>
       <textarea id="fC" placeholder="Pega aquí el protocolo. Puede ser largo: escribe como hablas al equipo, con pasos claros."></textarea>
+      <label>Formación · ¿en qué itinerarios entra este protocolo?</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px">
+        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          <input id="fPr" type="checkbox" style="width:auto;margin:0"> Recepción / ATP
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          <input id="fPh" type="checkbox" style="width:auto;margin:0"> Higienista / Auxiliar
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          <input id="fPd" type="checkbox" style="width:auto;margin:0"> Doctor/a
+        </label>
+      </div>
+      <label>Orden dentro del itinerario (1 = el primero que estudiar)</label>
+      <input id="fO" type="number" min="1" step="1" placeholder="Ej.: 1" style="max-width:130px">
       <label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)">
         <input id="fP" type="checkbox" style="width:auto;margin:0"> Publicado (visible para el equipo)
       </label>
@@ -367,8 +385,8 @@ $('salir').onclick = async () => { await sb.auth.signOut(); location.reload(); }
 async function arrancar() {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return;
-  const { data: perfil } = await sb.from('perfiles').select('nombre, rol').eq('id', user.id).single();
-  yo = { id: user.id, nombre: perfil?.nombre || user.email, rol: perfil?.rol || 'lector' };
+  const { data: perfil } = await sb.from('perfiles').select('nombre, rol, puesto').eq('id', user.id).single();
+  yo = { id: user.id, nombre: perfil?.nombre || user.email, rol: perfil?.rol || 'lector', puesto: perfil?.puesto || null };
   $('login').style.display = 'none';
   $('app').style.display = 'block';
   $('quien').textContent = yo.nombre;
@@ -586,6 +604,11 @@ function editar(id) {
   $('fTitulo').textContent = p ? 'Editar protocolo' : 'Nuevo protocolo';
   $('fT').value = p ? p.titulo : ''; $('fA').value = p ? p.area : '';
   $('fC').value = p ? p.contenido : ''; $('fP').checked = p ? p.publicado : false;
+  const fps = (p && Array.isArray(p.formacion_puestos)) ? p.formacion_puestos : [];
+  $('fPr').checked = fps.includes('recepcion-atp');
+  $('fPh').checked = fps.includes('higienista-auxiliar');
+  $('fPd').checked = fps.includes('doctor');
+  $('fO').value = (p && p.formacion_orden) ? p.formacion_orden : '';
   $('borrar').style.display = (p && yo.rol === 'admin') ? 'inline-block' : 'none';
   $('formErr').textContent = '';
   $('adminLista').style.display = 'none'; $('adminForm').style.display = 'block';
@@ -595,11 +618,17 @@ $('nuevo').onclick = () => editar(null);
 $('cancelar').onclick = () => { $('adminForm').style.display = 'none'; $('adminLista').style.display = 'block'; };
 
 $('guardar').onclick = async () => {
+  const puestosSel = [];
+  if ($('fPr').checked) puestosSel.push('recepcion-atp');
+  if ($('fPh').checked) puestosSel.push('higienista-auxiliar');
+  if ($('fPd').checked) puestosSel.push('doctor');
   const fila = {
     titulo: $('fT').value.trim(),
     area: $('fA').value.trim() || 'General',
     contenido: $('fC').value,
     publicado: $('fP').checked,
+    formacion_puestos: puestosSel,
+    formacion_orden: parseInt($('fO').value, 10) || null,
     actualizado_en: new Date().toISOString(),
     actualizado_por: yo.id
   };
@@ -652,6 +681,42 @@ async function cargarFormacion() {
   $('formResultado').style.display = 'none';
   $('formListaErr').textContent = '';
 
+  const { data: mios } = await sb.from('examen_intentos').select('*')
+    .eq('usuario_id', yo.id).order('creado_en', { ascending: false }).limit(100);
+  const aptos = new Set((mios || []).filter(t => Number(t.nota) >= 8).map(t => t.protocolo_id));
+
+  /* itinerario según el puesto: se desbloquea paso a paso */
+  const PUESTOS = { 'recepcion-atp': 'Recepción / ATP', 'higienista-auxiliar': 'Higienista / Auxiliar', 'doctor': 'Doctor/a' };
+  const iti = $('itiPasos'); iti.innerHTML = '';
+  if (!yo.puesto || !PUESTOS[yo.puesto]) {
+    $('itiHint').textContent = 'Dirección todavía no te ha asignado un itinerario. Mientras tanto puedes leer los protocolos y hacer cualquier examen.';
+  } else {
+    const pasos = protocolos
+      .filter(p => p.publicado && Array.isArray(p.formacion_puestos) && p.formacion_puestos.includes(yo.puesto))
+      .sort((a, b) => (a.formacion_orden || 99) - (b.formacion_orden || 99));
+    $('itiHint').textContent = pasos.length
+      ? 'Tu camino como ' + PUESTOS[yo.puesto] + ': lee cada protocolo y supera su examen para desbloquear el siguiente.'
+      : 'Tu itinerario de ' + PUESTOS[yo.puesto] + ' aún no tiene protocolos asignados.';
+    let desbloqueado = true;
+    pasos.forEach((p, i) => {
+      const superado = aptos.has(p.id);
+      const actual = desbloqueado && !superado;
+      const row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = `<span class="t">${i + 1}. ${p.titulo}</span>
+        <span class="tag ${superado ? 'pub' : ''}">${superado ? 'Superado ✓' : (actual ? 'En curso' : 'Bloqueado')}</span>`;
+      const leer = document.createElement('button'); leer.textContent = 'Leer';
+      leer.onclick = () => abrir(p.id);
+      row.appendChild(leer);
+      if (superado || actual) {
+        const ex = document.createElement('button'); ex.textContent = 'Examen';
+        ex.onclick = () => empezarExamen(p);
+        row.appendChild(ex);
+      }
+      iti.appendChild(row);
+      if (actual) desbloqueado = false;
+    });
+  }
+
   const box = $('formProtos'); box.innerHTML = '';
   const pubs = protocolos.filter(p => p.publicado);
   if (!pubs.length) box.innerHTML = '<p class="empty">Aún no hay protocolos publicados.</p>';
@@ -664,9 +729,6 @@ async function cargarFormacion() {
   });
 
   const nombresTitulo = id => (protocolos.find(x => x.id === id) || {}).titulo || '—';
-
-  const { data: mios } = await sb.from('examen_intentos').select('*')
-    .eq('usuario_id', yo.id).order('creado_en', { ascending: false }).limit(30);
   const mi = $('misIntentos'); mi.innerHTML = '';
   if (!mios || !mios.length) mi.innerHTML = '<p class="empty">Todavía no has hecho ningún examen.</p>';
   (mios || []).forEach(t => {
@@ -743,6 +805,9 @@ $('exEntregar').onclick = async () => {
       $('exNota').textContent = fNota(d.nota);
       $('exNota').style.color = d.nota >= 8 ? 'var(--ok)' : 'var(--danger)';
       $('exAccion').textContent = d.mensaje;
+      $('exRepasar').textContent = (d.repasar && d.repasar.length)
+        ? 'Repasa especialmente: ' + d.repasar.join(' · ')
+        : '';
       $('formExamen').style.display = 'none';
       $('formResultado').style.display = 'block';
       scrollTo({ top: 0 });
