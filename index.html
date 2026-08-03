@@ -182,6 +182,7 @@
     <button data-t="docs">Protocolos</button>
     <button data-t="admin" class="soloAdmin" style="display:none">Gestionar</button>
     <button data-t="dudas" class="soloAdmin" style="display:none">Dudas</button>
+    <button data-t="sug" class="soloAdmin" style="display:none">Sugerencias</button>
   </nav>
 
   <section id="s-ask" class="on">
@@ -212,6 +213,30 @@
       <h3 id="lTitulo"></h3>
       <div class="cuerpo" id="lCuerpo"></div>
       <p class="fecha" id="lFecha"></p>
+      <div style="margin-top:18px">
+        <button class="btn ghost" id="sugBtn">💡 Sugerir una mejora</button>
+        <div id="sugForm" style="display:none;margin-top:10px">
+          <textarea id="sugTxt" style="min-height:90px" placeholder="Qué mejorarías o qué información falta en este protocolo…"></textarea>
+          <div class="bar">
+            <button class="btn" id="sugEnviar">Enviar a dirección</button>
+            <button class="btn ghost" id="sugCancelar">Cancelar</button>
+          </div>
+          <p class="err" id="sugErr"></p>
+        </div>
+        <p class="muted" id="sugOk" style="display:none;margin-top:10px">Enviada. Dirección la revisará — gracias.</p>
+      </div>
+    </div>
+    <div id="sugGeneralBox" style="margin-top:18px">
+      <button class="btn ghost" id="sugGenBtn">💡 ¿Echas algo en falta? Sugiérelo</button>
+      <div id="sugGenForm" style="display:none;margin-top:10px">
+        <textarea id="sugGenTxt" style="min-height:90px" placeholder="Qué protocolo falta o qué información no encuentras…"></textarea>
+        <div class="bar">
+          <button class="btn" id="sugGenEnviar">Enviar a dirección</button>
+          <button class="btn ghost" id="sugGenCancelar">Cancelar</button>
+        </div>
+        <p class="err" id="sugGenErr"></p>
+      </div>
+      <p class="muted" id="sugGenOk" style="display:none;margin-top:10px">Enviada. Dirección la revisará — gracias.</p>
     </div>
   </section>
 
@@ -249,6 +274,16 @@
     </div>
     <p class="muted" id="dudasHint" style="margin-bottom:14px"></p>
     <div id="listaDudas"></div>
+  </section>
+
+  <section id="s-sug">
+    <h2 class="sec">Sugerencias del equipo</h2>
+    <div class="bar">
+      <button class="btn" id="sPend">Pendientes</button>
+      <button class="btn ghost" id="sTodas">Todas</button>
+    </div>
+    <p class="muted" style="margin-bottom:14px">Mejoras y huecos detectados por el equipo. Al aceptar una, aplícala tú al protocolo desde Gestionar.</p>
+    <div id="listaSug"></div>
   </section>
 </div>
 
@@ -311,6 +346,7 @@ document.querySelectorAll('nav button').forEach(b => {
     b.classList.add('on');
     $('s-' + b.dataset.t).classList.add('on');
     if (b.dataset.t === 'dudas') cargarDudas();
+    if (b.dataset.t === 'sug') cargarSugerencias();
   };
 });
 
@@ -358,20 +394,26 @@ function md(t) {
   return html;
 }
 
+let lectorId = null;
 function abrir(id) {
   const p = protocolos.find(x => x.id === id); if (!p) return;
+  lectorId = id;
   document.querySelector('nav button[data-t=docs]').click();
   $('lArea').textContent = p.area;
   $('lTitulo').textContent = p.titulo;
   $('lCuerpo').innerHTML = md(p.contenido);
   $('lFecha').textContent = 'Actualizado el ' + new Date(p.actualizado_en).toLocaleDateString('es-ES');
   $('fichas').style.display = 'none'; $('buscar').parentElement.style.display = 'none';
+  $('sugGeneralBox').style.display = 'none';
+  $('sugForm').style.display = 'none'; $('sugOk').style.display = 'none';
+  $('sugBtn').style.display = ''; $('sugTxt').value = '';
   $('lector').style.display = 'block';
   scrollTo({ top: 0, behavior: 'smooth' });
 }
 $('volver').onclick = () => {
   $('lector').style.display = 'none';
   $('fichas').style.display = ''; $('buscar').parentElement.style.display = '';
+  $('sugGeneralBox').style.display = '';
 };
 
 /* ---------- chat ---------- */
@@ -541,6 +583,87 @@ $('borrar').onclick = async () => {
   await sb.from('protocolos').delete().eq('id', editando);
   $('cancelar').click(); await cargarProtocolos();
 };
+
+/* ---------- sugerencias: enviar (equipo) ---------- */
+function wireSug(pref, getProtocoloId) {
+  $(pref + 'Btn').onclick = () => {
+    $(pref + 'Form').style.display = 'block';
+    $(pref + 'Btn').style.display = 'none';
+    $(pref + 'Ok').style.display = 'none';
+    $(pref + 'Txt').focus();
+  };
+  $(pref + 'Cancelar').onclick = () => {
+    $(pref + 'Form').style.display = 'none';
+    $(pref + 'Btn').style.display = '';
+    $(pref + 'Txt').value = ''; $(pref + 'Err').textContent = '';
+  };
+  $(pref + 'Enviar').onclick = async () => {
+    const texto = $(pref + 'Txt').value.trim();
+    if (!texto) { $(pref + 'Err').textContent = 'Escribe la sugerencia.'; return; }
+    $(pref + 'Err').textContent = '';
+    $(pref + 'Enviar').disabled = true;
+    const { error } = await sb.from('sugerencias').insert({
+      texto, protocolo_id: getProtocoloId(), usuario_id: yo.id
+    });
+    $(pref + 'Enviar').disabled = false;
+    if (error) { $(pref + 'Err').textContent = 'No se ha podido enviar ahora mismo.'; return; }
+    $(pref + 'Form').style.display = 'none'; $(pref + 'Txt').value = '';
+    $(pref + 'Btn').style.display = '';
+    $(pref + 'Ok').style.display = 'block';
+  };
+}
+wireSug('sug', () => lectorId);
+wireSug('sugGen', () => null);
+
+/* ---------- sugerencias: cola de aprobación (admin) ---------- */
+let vistaSug = 'pendientes';
+$('sPend').onclick = () => { vistaSug = 'pendientes'; cargarSugerencias(); };
+$('sTodas').onclick = () => { vistaSug = 'todas'; cargarSugerencias(); };
+
+async function cargarSugerencias() {
+  const pend = vistaSug === 'pendientes';
+  $('sPend').className = pend ? 'btn' : 'btn ghost';
+  $('sTodas').className = pend ? 'btn ghost' : 'btn';
+
+  let q = sb.from('sugerencias').select('*').order('creado_en', { ascending: false }).limit(120);
+  if (pend) q = q.eq('estado', 'pendiente');
+  const { data } = await q;
+
+  const nombres = {};
+  const { data: perfs } = await sb.from('perfiles').select('id, nombre');
+  (perfs || []).forEach(p => nombres[p.id] = p.nombre);
+
+  const box = $('listaSug'); box.innerHTML = '';
+  if (!data || !data.length) {
+    box.innerHTML = pend
+      ? '<p class="empty">Ninguna sugerencia pendiente.</p>'
+      : '<p class="empty">Todavía no hay sugerencias.</p>';
+    return;
+  }
+  data.forEach(s => {
+    const p = protocolos.find(x => x.id === s.protocolo_id);
+    const row = document.createElement('div'); row.className = 'row';
+    const cuando = new Date(s.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    const estadoTag = s.estado === 'pendiente' ? ''
+      : `<span class="tag ${s.estado === 'aceptada' ? 'pub' : ''}">${s.estado}</span>`;
+    row.innerHTML = `<span class="t" style="white-space:normal">${s.texto}</span>
+      <span class="tag">${p ? p.titulo : 'general'}</span>${estadoTag}
+      <small>${nombres[s.usuario_id] || '—'} · ${cuando}</small>`;
+    if (s.estado === 'pendiente') {
+      const ok = document.createElement('button'); ok.textContent = 'Aceptar';
+      ok.onclick = async () => { await sb.from('sugerencias').update({ estado: 'aceptada' }).eq('id', s.id); cargarSugerencias(); };
+      const ko = document.createElement('button'); ko.textContent = 'Rechazar';
+      ko.onclick = async () => { await sb.from('sugerencias').update({ estado: 'rechazada' }).eq('id', s.id); cargarSugerencias(); };
+      row.appendChild(ok); row.appendChild(ko);
+      if (p) {
+        const ab = document.createElement('button'); ab.textContent = 'Abrir protocolo';
+        ab.onclick = () => { document.querySelector('nav button[data-t=admin]').click(); editar(p.id); };
+        row.appendChild(ab);
+      }
+    }
+    box.appendChild(row);
+  });
+}
 
 /* ---------- dudas ---------- */
 let vistaDudas = 'pendientes';
