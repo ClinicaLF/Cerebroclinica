@@ -299,20 +299,18 @@
       <input id="fA" type="text" placeholder="Ej.: Protocolos clínicos">
       <label>Contenido</label>
       <textarea id="fC" placeholder="Pega aquí el protocolo. Puede ser largo: escribe como hablas al equipo, con pasos claros."></textarea>
-      <label>Formación · ¿en qué itinerarios entra este protocolo?</label>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:4px">
-        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
-          <input id="fPr" type="checkbox" style="width:auto;margin:0"> Recepción / ATP
+      <label>Formación · posición en cada itinerario (vacío = no entra; 1 = el primero que estudiar)</label>
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:4px">
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          Recepción / ATP <input id="fOr" type="number" min="1" step="1" style="width:70px;margin:0">
         </label>
-        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
-          <input id="fPh" type="checkbox" style="width:auto;margin:0"> Higienista / Auxiliar
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          Higienista / Auxiliar <input id="fOh" type="number" min="1" step="1" style="width:70px;margin:0">
         </label>
-        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
-          <input id="fPd" type="checkbox" style="width:auto;margin:0"> Doctor/a
+        <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--text);margin:0">
+          Doctor/a <input id="fOd" type="number" min="1" step="1" style="width:70px;margin:0">
         </label>
       </div>
-      <label>Orden dentro del itinerario (1 = el primero que estudiar)</label>
-      <input id="fO" type="number" min="1" step="1" placeholder="Ej.: 1" style="max-width:130px">
       <label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)">
         <input id="fP" type="checkbox" style="width:auto;margin:0"> Publicado (visible para el equipo)
       </label>
@@ -587,6 +585,16 @@ else {
 
 /* ---------- gestionar ---------- */
 let editando = null;
+
+/* posición de un protocolo en el itinerario de un puesto (null = no entra).
+   Entiende el formato objeto {puesto: orden} y el antiguo de lista + orden único. */
+function ordenFormacion(p, puesto) {
+  const fp = p && p.formacion_puestos;
+  if (!fp || !puesto) return null;
+  if (Array.isArray(fp)) return fp.includes(puesto) ? (p.formacion_orden || 99) : null;
+  const v = fp[puesto];
+  return (v === undefined || v === null) ? null : Number(v);
+}
 function pintarFilas() {
   const box = $('filas'); box.innerHTML = '';
   if (!protocolos.length) { box.innerHTML = '<p class="empty">Aún no hay protocolos. Crea el primero.</p>'; return; }
@@ -604,11 +612,10 @@ function editar(id) {
   $('fTitulo').textContent = p ? 'Editar protocolo' : 'Nuevo protocolo';
   $('fT').value = p ? p.titulo : ''; $('fA').value = p ? p.area : '';
   $('fC').value = p ? p.contenido : ''; $('fP').checked = p ? p.publicado : false;
-  const fps = (p && Array.isArray(p.formacion_puestos)) ? p.formacion_puestos : [];
-  $('fPr').checked = fps.includes('recepcion-atp');
-  $('fPh').checked = fps.includes('higienista-auxiliar');
-  $('fPd').checked = fps.includes('doctor');
-  $('fO').value = (p && p.formacion_orden) ? p.formacion_orden : '';
+  const oR = ordenFormacion(p, 'recepcion-atp'), oH = ordenFormacion(p, 'higienista-auxiliar'), oD = ordenFormacion(p, 'doctor');
+  $('fOr').value = oR === null ? '' : oR;
+  $('fOh').value = oH === null ? '' : oH;
+  $('fOd').value = oD === null ? '' : oD;
   $('borrar').style.display = (p && yo.rol === 'admin') ? 'inline-block' : 'none';
   $('formErr').textContent = '';
   $('adminLista').style.display = 'none'; $('adminForm').style.display = 'block';
@@ -618,17 +625,17 @@ $('nuevo').onclick = () => editar(null);
 $('cancelar').onclick = () => { $('adminForm').style.display = 'none'; $('adminLista').style.display = 'block'; };
 
 $('guardar').onclick = async () => {
-  const puestosSel = [];
-  if ($('fPr').checked) puestosSel.push('recepcion-atp');
-  if ($('fPh').checked) puestosSel.push('higienista-auxiliar');
-  if ($('fPd').checked) puestosSel.push('doctor');
+  const ordenes = {};
+  const vR = parseInt($('fOr').value, 10); if (vR >= 1) ordenes['recepcion-atp'] = vR;
+  const vH = parseInt($('fOh').value, 10); if (vH >= 1) ordenes['higienista-auxiliar'] = vH;
+  const vD = parseInt($('fOd').value, 10); if (vD >= 1) ordenes['doctor'] = vD;
   const fila = {
     titulo: $('fT').value.trim(),
     area: $('fA').value.trim() || 'General',
     contenido: $('fC').value,
     publicado: $('fP').checked,
-    formacion_puestos: puestosSel,
-    formacion_orden: parseInt($('fO').value, 10) || null,
+    formacion_puestos: ordenes,
+    formacion_orden: null,
     actualizado_en: new Date().toISOString(),
     actualizado_por: yo.id
   };
@@ -692,8 +699,8 @@ async function cargarFormacion() {
     $('itiHint').textContent = 'Dirección todavía no te ha asignado un itinerario. Mientras tanto puedes leer los protocolos y hacer cualquier examen.';
   } else {
     const pasos = protocolos
-      .filter(p => p.publicado && Array.isArray(p.formacion_puestos) && p.formacion_puestos.includes(yo.puesto))
-      .sort((a, b) => (a.formacion_orden || 99) - (b.formacion_orden || 99));
+      .filter(p => p.publicado && ordenFormacion(p, yo.puesto) !== null)
+      .sort((a, b) => ordenFormacion(a, yo.puesto) - ordenFormacion(b, yo.puesto));
     $('itiHint').textContent = pasos.length
       ? 'Tu camino como ' + PUESTOS[yo.puesto] + ': lee cada protocolo y supera su examen para desbloquear el siguiente.'
       : 'Tu itinerario de ' + PUESTOS[yo.puesto] + ' aún no tiene protocolos asignados.';
