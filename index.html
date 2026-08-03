@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerebro digital · Centro Odontológico Laura Fernández</title>
+<style>
+  :root{
+    --bg:#10161C; --panel:#181F26; --panel2:#1F2830; --line:rgba(138,148,155,.2);
+    --text:#E8EAED; --muted:#8A949B; --accent:#C8A96E; --ok:#7FA85A; --danger:#C0392B;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;min-height:100vh}
+  .wrap{max-width:900px;margin:0 auto;padding:16px 18px 40px}
+
+  /* login */
+  #login{max-width:360px;margin:14vh auto;padding:0 20px}
+  .mark{height:62px;margin-bottom:20px}
+  .mark img{height:100%;width:auto;display:block}
+  #login h1{font-family:Georgia,serif;font-weight:normal;font-size:23px;margin-bottom:4px}
+  #login p.sub{color:var(--muted);font-size:13px;margin-bottom:24px;letter-spacing:.4px}
+  input,textarea,select{width:100%;padding:11px 13px;border-radius:10px;border:1px solid var(--line);
+    background:var(--panel);color:var(--text);font:inherit;outline:none;margin-bottom:10px}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  textarea{min-height:220px;resize:vertical;line-height:1.6}
+  .btn{background:var(--accent);color:#10161C;border:none;border-radius:10px;padding:11px 20px;
+    font:inherit;font-weight:600;cursor:pointer}
+  .btn.ghost{background:none;border:1px solid var(--line);color:var(--text);font-weight:400}
+  .btn.danger{background:none;border:1px solid var(--danger);color:var(--danger);font-weight:400}
+  .btn:disabled{opacity:.45;cursor:default}
+  .err{color:var(--danger);font-size:13px;margin-top:8px;min-height:18px}
+
+  /* cabecera */
+  header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  header .m{height:34px;flex:none;display:flex;align-items:center}
+  header .m img{height:100%;width:auto;display:block}
+  header h1{font-family:Georgia,serif;font-weight:normal;font-size:18px}
+  header small{display:block;color:var(--muted);font-size:11.5px;letter-spacing:.5px}
+  header .me{margin-left:auto;text-align:right;font-size:12px;color:var(--muted)}
+  header .me a{color:var(--accent);cursor:pointer;text-decoration:none}
+  nav{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;margin-bottom:18px}
+  nav button{background:none;border:none;color:var(--muted);font:inherit;font-size:14px;padding:10px 14px;
+    cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  nav button.on{color:var(--text);border-bottom-color:var(--accent)}
+  section{display:none}
+  section.on{display:block}
+
+  /* chat */
+  #chatLog{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;min-height:100px}
+  .msg{display:flex}
+  .msg.u{justify-content:flex-end}
+  .bubble{max-width:84%;padding:10px 14px;border-radius:14px;font-size:14.5px;white-space:pre-wrap}
+  .msg.u .bubble{background:rgba(200,169,110,.16);border:1px solid rgba(200,169,110,.35)}
+  .msg.a .bubble{background:var(--panel);border:1px solid var(--line)}
+  .srcRow{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .srcChip{font-size:11.5px;padding:3px 10px;border-radius:20px;border:1px solid var(--line);
+    color:var(--accent);cursor:pointer;background:rgba(200,169,110,.07)}
+  .askRow{display:flex;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:26px;
+    padding:6px 7px 6px 16px;align-items:center;position:sticky;bottom:12px}
+  .askRow input{flex:1;background:none;border:none;margin:0;padding:0}
+  .askRow button{width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);
+    color:#10161C;font-size:15px;cursor:pointer;flex:none}
+  .starter{display:inline-block;margin:0 6px 8px 0;padding:6px 12px;border-radius:18px;border:1px solid var(--line);
+    color:var(--muted);font-size:13px;cursor:pointer;background:var(--panel)}
+  .typing{color:var(--muted);font-size:13px}
+
+  /* listas */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);
+    border-radius:12px;padding:13px;cursor:pointer}
+  .card:hover{background:var(--panel2)}
+  .card h3{font-size:14.5px;font-weight:600;margin-bottom:3px}
+  .card span{font-size:11.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
+  .row .t{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row small{color:var(--muted);font-size:12px;flex:none}
+  .row button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:4px 10px;font-size:12.5px;cursor:pointer;flex:none}
+  .tag{font-size:11px;padding:2px 9px;border-radius:12px;border:1px solid var(--line);color:var(--muted);flex:none}
+  .tag.pub{color:var(--ok);border-color:rgba(127,168,90,.5)}
+  .muted{color:var(--muted);font-size:13.5px}
+  .empty{color:var(--muted);text-align:center;padding:34px 0;font-size:14px}
+  h2.sec{font-family:Georgia,serif;font-weight:normal;font-size:17px;margin:0 0 12px}
+  .bar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+  label{display:block;font-size:11.5px;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);margin:14px 0 5px}
+
+  /* lector de protocolo */
+  #lector{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px}
+  #lector .area{font-size:11px;letter-spacing:.9px;text-transform:uppercase;color:var(--muted)}
+  #lector h3{font-family:Georgia,serif;font-weight:normal;font-size:21px;margin:6px 0 14px}
+  #lector .cuerpo{font-size:14.5px;color:#C9D0D6;
+    -webkit-user-select:none;user-select:none}
+  #lector .cuerpo p{margin:0 0 6px}
+  #lector .cuerpo h4{font-family:Georgia,serif;font-weight:normal;font-size:18px;color:var(--text);
+    margin:22px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  #lector .cuerpo h5{font-size:14px;font-weight:700;letter-spacing:.5px;color:var(--accent);
+    margin:18px 0 8px;text-transform:uppercase}
+  #lector .cuerpo strong{color:var(--text)}
+  #lector .cuerpo ul{margin:2px 0 10px;padding-left:22px}
+  #lector .cuerpo li{margin-bottom:5px}
+  #lector .cuerpo .sp{height:8px}
+  #lector .fecha{color:var(--muted);font-size:12px;margin-top:16px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="mark"><img src="data:image/png;base64,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" alt="Centro Odontológico Laura Fernández"></div>
+  <h1>Cerebro digital</h1>
+  <p class="sub">CENTRO ODONTOLÓGICO LAURA FERNÁNDEZ</p>
+  <input id="email" type="email" placeholder="Tu correo" autocomplete="username">
+  <input id="pass" type="password" placeholder="Tu contraseña" autocomplete="current-password">
+  <button class="btn" id="entrar" style="width:100%">Entrar</button>
+  <p class="err" id="loginErr"></p>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <div class="m"><img src="data:image/png;base64,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" alt=""></div>
+    <div>
+      <h1>Cerebro digital</h1>
+      <small id="stats">CENTRO ODONTOLÓGICO</small>
+    </div>
+    <div class="me"><span id="quien"></span><br><a id="salir">Salir</a></div>
+  </header>
+
+  <nav>
+    <button data-t="ask" class="on">Preguntar</button>
+    <button data-t="docs">Protocolos</button>
+    <button data-t="admin" class="soloAdmin" style="display:none">Gestionar</button>
+    <button data-t="dudas" class="soloAdmin" style="display:none">Dudas</button>
+  </nav>
+
+  <section id="s-ask" class="on">
+    <div id="starters">
+      <span class="starter">¿Cómo se sigue un presupuesto pendiente?</span>
+      <span class="starter">¿Qué hago si entra una urgencia?</span>
+    </div>
+    <div id="chatLog"></div>
+    <div class="askRow">
+      <input id="q" type="text" placeholder="Pregunta tu duda…" autocomplete="off">
+      <button id="send">➤</button>
+    </div>
+  </section>
+
+  <section id="s-docs">
+    <div class="bar"><input id="buscar" type="text" placeholder="Buscar protocolo…" style="margin:0"></div>
+    <div class="grid" id="fichas"></div>
+    <div class="empty" id="sinDocs" style="display:none">Todavía no hay protocolos publicados.</div>
+    <div id="lector" style="display:none">
+      <button class="btn ghost" id="volver" style="margin-bottom:16px">← Volver</button>
+      <p class="area" id="lArea"></p>
+      <h3 id="lTitulo"></h3>
+      <div class="cuerpo" id="lCuerpo"></div>
+      <p class="fecha" id="lFecha"></p>
+    </div>
+  </section>
+
+  <section id="s-admin">
+    <div id="adminLista">
+      <div class="bar"><button class="btn" id="nuevo">+ Nuevo protocolo</button></div>
+      <div id="filas"></div>
+    </div>
+    <div id="adminForm" style="display:none">
+      <h2 class="sec" id="fTitulo">Nuevo protocolo</h2>
+      <label>Título</label>
+      <input id="fT" type="text" placeholder="Ej.: Gestión de urgencias">
+      <label>Área</label>
+      <input id="fA" type="text" placeholder="Ej.: Protocolos clínicos">
+      <label>Contenido</label>
+      <textarea id="fC" placeholder="Pega aquí el protocolo. Puede ser largo: escribe como hablas al equipo, con pasos claros."></textarea>
+      <label style="display:flex;align-items:center;gap:9px;text-transform:none;letter-spacing:0;font-size:14px;color:var(--text)">
+        <input id="fP" type="checkbox" style="width:auto;margin:0"> Publicado (visible para el equipo)
+      </label>
+      <div class="bar" style="margin-top:20px">
+        <button class="btn" id="guardar">Guardar</button>
+        <button class="btn ghost" id="cancelar">Cancelar</button>
+        <button class="btn danger" id="borrar" style="display:none;margin-left:auto">Eliminar</button>
+      </div>
+      <p class="err" id="formErr"></p>
+    </div>
+  </section>
+
+  <section id="s-dudas">
+    <h2 class="sec">Dudas que el cerebro no supo responder</h2>
+    <p class="muted" style="margin-bottom:14px">Cada línea es un protocolo que falta por escribir.</p>
+    <div id="listaDudas"></div>
+  </section>
+</div>
+
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://gpxvuzjqitystnfmesee.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdweHZ1empxaXR5c3RuZm1lc2VlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NzgyNjEsImV4cCI6MjEwMTM1NDI2MX0.IkyNRvBh43YLtZ_j4lNlOHI1gO8sUh6yOa4H9OPMGV8';
+
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let yo = null, protocolos = [], historial = [];
+
+const $ = id => document.getElementById(id);
+
+/* ---------- login ---------- */
+$('entrar').onclick = async () => {
+  $('loginErr').textContent = '';
+  $('entrar').disabled = true;
+  const { error } = await sb.auth.signInWithPassword({
+    email: $('email').value.trim(), password: $('pass').value
+  });
+  $('entrar').disabled = false;
+  if (error) { $('loginErr').textContent = 'Correo o contraseña incorrectos.'; return; }
+  arrancar();
+};
+$('pass').addEventListener('keydown', e => { if (e.key === 'Enter') $('entrar').click(); });
+$('salir').onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+async function arrancar() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return;
+  const { data: perfil } = await sb.from('perfiles').select('nombre, rol').eq('id', user.id).single();
+  yo = { id: user.id, nombre: perfil?.nombre || user.email, rol: perfil?.rol || 'lector' };
+  $('login').style.display = 'none';
+  $('app').style.display = 'block';
+  $('quien').textContent = yo.nombre;
+  if (yo.rol === 'admin' || yo.rol === 'editor') {
+    document.querySelectorAll('.soloAdmin').forEach(b => b.style.display = '');
+  }
+  await cargarProtocolos();
+}
+sb.auth.getSession().then(({ data }) => { if (data.session) arrancar(); });
+
+/* ---------- pestañas ---------- */
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('section').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+    $('s-' + b.dataset.t).classList.add('on');
+    if (b.dataset.t === 'dudas') cargarDudas();
+  };
+});
+
+/* ---------- protocolos ---------- */
+async function cargarProtocolos() {
+  const { data } = await sb.from('protocolos').select('*').order('area').order('titulo');
+  protocolos = data || [];
+  $('stats').textContent = `CENTRO ODONTOLÓGICO · ${protocolos.filter(p => p.publicado).length} protocolos`;
+  pintarFichas(); pintarFilas();
+}
+function pintarFichas() {
+  const q = $('buscar').value.trim().toLowerCase();
+  const lista = protocolos.filter(p => p.publicado || yo.rol !== 'lector')
+    .filter(p => !q || (p.titulo + ' ' + p.contenido).toLowerCase().includes(q));
+  const g = $('fichas'); g.innerHTML = '';
+  $('sinDocs').style.display = lista.length ? 'none' : 'block';
+  lista.forEach(p => {
+    const d = document.createElement('div'); d.className = 'card';
+    d.innerHTML = `<span>${p.area}</span><h3>${p.titulo}</h3>`;
+    d.onclick = () => abrir(p.id);
+    g.appendChild(d);
+  });
+}
+$('buscar').oninput = pintarFichas;
+
+/* convierte el texto del protocolo en HTML con estructura:
+   "## " título de sección · "### " subtítulo · "- " lista · "**negrita**" */
+function md(t) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = s => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  let html = '', enLista = false;
+  const cerrar = () => { if (enLista) { html += '</ul>'; enLista = false; } };
+  for (const raw of t.split(/\r?\n/)) {
+    const l = raw.trimEnd();
+    if (/^###\s+/.test(l)) { cerrar(); html += '<h5>' + inline(l.replace(/^###\s+/, '')) + '</h5>'; }
+    else if (/^##\s+/.test(l)) { cerrar(); html += '<h4>' + inline(l.replace(/^##\s+/, '')) + '</h4>'; }
+    else if (/^[-•▸]\s+/.test(l)) {
+      if (!enLista) { html += '<ul>'; enLista = true; }
+      html += '<li>' + inline(l.replace(/^[-•▸]\s+/, '')) + '</li>';
+    }
+    else if (!l.trim()) { cerrar(); html += '<div class="sp"></div>'; }
+    else { cerrar(); html += '<p>' + inline(l) + '</p>'; }
+  }
+  cerrar();
+  return html;
+}
+
+function abrir(id) {
+  const p = protocolos.find(x => x.id === id); if (!p) return;
+  document.querySelector('nav button[data-t=docs]').click();
+  $('lArea').textContent = p.area;
+  $('lTitulo').textContent = p.titulo;
+  $('lCuerpo').innerHTML = md(p.contenido);
+  $('lFecha').textContent = 'Actualizado el ' + new Date(p.actualizado_en).toLocaleDateString('es-ES');
+  $('fichas').style.display = 'none'; $('buscar').parentElement.style.display = 'none';
+  $('lector').style.display = 'block';
+  scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('volver').onclick = () => {
+  $('lector').style.display = 'none';
+  $('fichas').style.display = ''; $('buscar').parentElement.style.display = '';
+};
+
+/* ---------- chat ---------- */
+function burbuja(rol, texto, fuentes) {
+  const row = document.createElement('div'); row.className = 'msg ' + (rol === 'user' ? 'u' : 'a');
+  const b = document.createElement('div'); b.className = 'bubble'; b.textContent = texto;
+  if (fuentes && fuentes.length) {
+    const s = document.createElement('div'); s.className = 'srcRow';
+    fuentes.forEach(id => {
+      const p = protocolos.find(x => x.id === id); if (!p) return;
+      const c = document.createElement('span'); c.className = 'srcChip'; c.textContent = '◈ ' + p.titulo;
+      c.onclick = () => abrir(id); s.appendChild(c);
+    });
+    b.appendChild(s);
+  }
+  row.appendChild(b); $('chatLog').appendChild(row);
+  row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+async function preguntar(texto) {
+  const q = (texto || $('q').value).trim(); if (!q || $('send').disabled) return;
+  $('q').value = ''; $('send').disabled = true; $('starters').style.display = 'none';
+  burbuja('user', q);
+  const t = document.createElement('div'); t.className = 'typing'; t.textContent = 'Consultando el cerebro…';
+  $('chatLog').appendChild(t);
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const r = await fetch(SUPABASE_URL + '/functions/v1/preguntar', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+        'apikey': SUPABASE_ANON_KEY
+      },
+      body: JSON.stringify({ pregunta: q, historial })
+    });
+    const d = await r.json();
+    t.remove();
+    if (d.error) { burbuja('assistant', d.error); }
+    else {
+      historial.push({ role: 'user', content: q }, { role: 'assistant', content: d.respuesta });
+      burbuja('assistant', d.respuesta, d.fuentes);
+    }
+  } catch (e) {
+    t.remove(); burbuja('assistant', 'No se ha podido conectar. Inténtalo de nuevo en un momento.');
+  }
+  $('send').disabled = false;
+}
+$('send').onclick = () => preguntar();
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') preguntar(); });
+document.querySelectorAll('.starter').forEach(s => s.onclick = () => preguntar(s.textContent));
+
+/* ---------- gestionar ---------- */
+let editando = null;
+function pintarFilas() {
+  const box = $('filas'); box.innerHTML = '';
+  if (!protocolos.length) { box.innerHTML = '<p class="empty">Aún no hay protocolos. Crea el primero.</p>'; return; }
+  protocolos.forEach(p => {
+    const d = document.createElement('div'); d.className = 'row';
+    d.innerHTML = `<span class="t">${p.titulo}</span>
+      <span class="tag ${p.publicado ? 'pub' : ''}">${p.publicado ? 'Publicado' : 'Borrador'}</span>`;
+    const b = document.createElement('button'); b.textContent = 'Editar';
+    b.onclick = () => editar(p.id); d.appendChild(b); box.appendChild(d);
+  });
+}
+function editar(id) {
+  editando = id;
+  const p = id ? protocolos.find(x => x.id === id) : null;
+  $('fTitulo').textContent = p ? 'Editar protocolo' : 'Nuevo protocolo';
+  $('fT').value = p ? p.titulo : ''; $('fA').value = p ? p.area : '';
+  $('fC').value = p ? p.contenido : ''; $('fP').checked = p ? p.publicado : false;
+  $('borrar').style.display = (p && yo.rol === 'admin') ? 'inline-block' : 'none';
+  $('formErr').textContent = '';
+  $('adminLista').style.display = 'none'; $('adminForm').style.display = 'block';
+  scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('nuevo').onclick = () => editar(null);
+$('cancelar').onclick = () => { $('adminForm').style.display = 'none'; $('adminLista').style.display = 'block'; };
+
+$('guardar').onclick = async () => {
+  const fila = {
+    titulo: $('fT').value.trim(),
+    area: $('fA').value.trim() || 'General',
+    contenido: $('fC').value,
+    publicado: $('fP').checked,
+    actualizado_en: new Date().toISOString(),
+    actualizado_por: yo.id
+  };
+  if (!fila.titulo) { $('formErr').textContent = 'Ponle un título.'; return; }
+  $('guardar').disabled = true;
+  let error;
+  if (editando) {
+    const anterior = protocolos.find(p => p.id === editando);
+    await sb.from('versiones').insert({
+      protocolo_id: editando, titulo: anterior.titulo,
+      contenido: anterior.contenido, guardado_por: yo.id
+    });
+    ({ error } = await sb.from('protocolos').update(fila).eq('id', editando));
+  } else {
+    ({ error } = await sb.from('protocolos').insert(fila));
+  }
+  $('guardar').disabled = false;
+  if (error) { $('formErr').textContent = 'No se ha podido guardar: ' + error.message; return; }
+  $('cancelar').click();
+  await cargarProtocolos();
+};
+$('borrar').onclick = async () => {
+  if (!editando || !confirm('¿Eliminar este protocolo del cerebro?')) return;
+  await sb.from('protocolos').delete().eq('id', editando);
+  $('cancelar').click(); await cargarProtocolos();
+};
+
+/* ---------- dudas ---------- */
+async function cargarDudas() {
+  const { data } = await sb.from('dudas').select('*')
+    .eq('sin_respuesta', true).eq('resuelta', false)
+    .order('creado_en', { ascending: false }).limit(60);
+  const box = $('listaDudas'); box.innerHTML = '';
+  if (!data || !data.length) { box.innerHTML = '<p class="empty">Ninguna duda pendiente. El cerebro responde a todo.</p>'; return; }
+  data.forEach(d => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<span class="t">${d.pregunta}</span>
+      <small>${new Date(d.creado_en).toLocaleDateString('es-ES')}</small>`;
+    const b = document.createElement('button'); b.textContent = 'Resuelta';
+    b.onclick = async () => { await sb.from('dudas').update({ resuelta: true }).eq('id', d.id); cargarDudas(); };
+    row.appendChild(b); box.appendChild(row);
+  });
+}
+</script>
+</body>
+</html>
