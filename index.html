@@ -63,6 +63,11 @@
   .starter{display:inline-block;margin:0 6px 8px 0;padding:6px 12px;border-radius:18px;border:1px solid var(--line);
     color:var(--muted);font-size:13px;cursor:pointer;background:var(--panel)}
   .typing{color:var(--muted);font-size:13px}
+  .voteRow{display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--muted);font-size:12px}
+  .voteRow button{background:none;border:1px solid var(--line);border-radius:8px;
+    padding:2px 10px;cursor:pointer;font-size:13px;color:var(--text)}
+  .dudaDet{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    padding:10px 13px;margin:-3px 0 7px;font-size:13.5px;color:#C9D0D6;white-space:pre-wrap}
 
   /* listas */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
@@ -183,8 +188,12 @@
   </section>
 
   <section id="s-dudas">
-    <h2 class="sec">Dudas que el cerebro no supo responder</h2>
-    <p class="muted" style="margin-bottom:14px">Cada línea es un protocolo que falta por escribir.</p>
+    <h2 class="sec">Dudas del equipo</h2>
+    <div class="bar">
+      <button class="btn" id="vPend">Sin respuesta</button>
+      <button class="btn ghost" id="vTodas">Todas</button>
+    </div>
+    <p class="muted" id="dudasHint" style="margin-bottom:14px"></p>
     <div id="listaDudas"></div>
   </section>
 </div>
@@ -301,7 +310,7 @@ $('volver').onclick = () => {
 };
 
 /* ---------- chat ---------- */
-function burbuja(rol, texto, fuentes) {
+function burbuja(rol, texto, fuentes, dudaId) {
   const row = document.createElement('div'); row.className = 'msg ' + (rol === 'user' ? 'u' : 'a');
   const b = document.createElement('div'); b.className = 'bubble'; b.textContent = texto;
   if (fuentes && fuentes.length) {
@@ -312,6 +321,19 @@ function burbuja(rol, texto, fuentes) {
       c.onclick = () => abrir(id); s.appendChild(c);
     });
     b.appendChild(s);
+  }
+  if (rol === 'assistant' && dudaId) {
+    const v = document.createElement('div'); v.className = 'voteRow';
+    const t = document.createElement('span'); t.textContent = '¿Te ha servido?';
+    const si = document.createElement('button'); si.textContent = '👍';
+    const no = document.createElement('button'); no.textContent = '👎';
+    const votar = async (val) => {
+      await sb.from('dudas').update({ util: val }).eq('id', dudaId);
+      v.innerHTML = '<span>Gracias por valorarlo.</span>';
+    };
+    si.onclick = () => votar(true); no.onclick = () => votar(false);
+    v.appendChild(t); v.appendChild(si); v.appendChild(no);
+    b.appendChild(v);
   }
   row.appendChild(b); $('chatLog').appendChild(row);
   row.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -338,7 +360,7 @@ async function preguntar(texto) {
     if (d.error) { burbuja('assistant', d.error); }
     else {
       historial.push({ role: 'user', content: q }, { role: 'assistant', content: d.respuesta });
-      burbuja('assistant', d.respuesta, d.fuentes);
+      burbuja('assistant', d.respuesta, d.fuentes, d.dudaId);
     }
   } catch (e) {
     t.remove(); burbuja('assistant', 'No se ha podido conectar. Inténtalo de nuevo en un momento.');
@@ -410,19 +432,55 @@ $('borrar').onclick = async () => {
 };
 
 /* ---------- dudas ---------- */
+let vistaDudas = 'pendientes';
+$('vPend').onclick = () => { vistaDudas = 'pendientes'; cargarDudas(); };
+$('vTodas').onclick = () => { vistaDudas = 'todas'; cargarDudas(); };
+
 async function cargarDudas() {
-  const { data } = await sb.from('dudas').select('*')
-    .eq('sin_respuesta', true).eq('resuelta', false)
-    .order('creado_en', { ascending: false }).limit(60);
+  const pend = vistaDudas === 'pendientes';
+  $('vPend').className = pend ? 'btn' : 'btn ghost';
+  $('vTodas').className = pend ? 'btn ghost' : 'btn';
+  $('dudasHint').textContent = pend
+    ? 'Lo que el cerebro no supo responder: cada línea es un protocolo que falta por escribir.'
+    : 'Todo lo que pregunta el equipo, lo respondiera el cerebro o no.';
+
+  let q = sb.from('dudas').select('*').order('creado_en', { ascending: false });
+  q = pend ? q.eq('sin_respuesta', true).eq('resuelta', false).limit(60) : q.limit(120);
+  const { data } = await q;
+
+  const nombres = {};
+  const { data: perfs } = await sb.from('perfiles').select('id, nombre');
+  (perfs || []).forEach(p => nombres[p.id] = p.nombre);
+
   const box = $('listaDudas'); box.innerHTML = '';
-  if (!data || !data.length) { box.innerHTML = '<p class="empty">Ninguna duda pendiente. El cerebro responde a todo.</p>'; return; }
+  if (!data || !data.length) {
+    box.innerHTML = pend
+      ? '<p class="empty">Ninguna duda pendiente. El cerebro responde a todo.</p>'
+      : '<p class="empty">Todavía nadie ha preguntado nada.</p>';
+    return;
+  }
   data.forEach(d => {
     const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<span class="t">${d.pregunta}</span>
-      <small>${new Date(d.creado_en).toLocaleDateString('es-ES')}</small>`;
-    const b = document.createElement('button'); b.textContent = 'Resuelta';
-    b.onclick = async () => { await sb.from('dudas').update({ resuelta: true }).eq('id', d.id); cargarDudas(); };
-    row.appendChild(b); box.appendChild(row);
+    const cuando = new Date(d.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+    const quien = nombres[d.usuario_id] || '—';
+    const voto = d.util === true ? '👍 ' : (d.util === false ? '👎 ' : '');
+    row.innerHTML = `<span class="t">${voto}${d.pregunta}</span>
+      ${!pend && d.sin_respuesta && !d.resuelta ? '<span class="tag">Sin respuesta</span>' : ''}
+      <small>${quien} · ${cuando}</small>`;
+    if (pend) {
+      const b = document.createElement('button'); b.textContent = 'Resuelta';
+      b.onclick = async (e) => {
+        e.stopPropagation();
+        await sb.from('dudas').update({ resuelta: true }).eq('id', d.id); cargarDudas();
+      };
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+    const det = document.createElement('div'); det.className = 'dudaDet'; det.style.display = 'none';
+    det.textContent = d.respuesta || 'No hay respuesta guardada de esta duda.';
+    box.appendChild(det);
+    row.style.cursor = 'pointer';
+    row.onclick = () => { det.style.display = det.style.display === 'none' ? 'block' : 'none'; };
   });
 }
 </script>
