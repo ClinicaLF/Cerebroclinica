@@ -761,15 +761,24 @@ async function cargarFormacion() {
   });
 
   const nombresTitulo = id => (protocolos.find(x => x.id === id) || {}).titulo || '—';
-  const mi = $('misIntentos'); mi.innerHTML = '';
-  if (!mios || !mios.length) mi.innerHTML = '<p class="empty">Todavía no has hecho ningún examen.</p>';
-  (mios || []).forEach(t => {
+  const filaIntento = (cont, t, prefijo) => {
     const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = `<span class="t">${nombresTitulo(t.protocolo_id)}</span>
+    row.innerHTML = `<span class="t">${prefijo}${nombresTitulo(t.protocolo_id)}</span>
       <span class="notaBadge ${t.nota >= 8 ? 'ok' : 'ko'}">${fNota(t.nota)}</span>
       <small>${new Date(t.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</small>`;
-    mi.appendChild(row);
-  });
+    cont.appendChild(row);
+    const det = document.createElement('div'); det.className = 'dudaDet'; det.style.display = 'none';
+    det.textContent = (Array.isArray(t.repasar) && t.repasar.length)
+      ? 'Repasa especialmente: ' + t.repasar.join(' · ')
+      : (t.nota >= 8 ? 'Sin temas pendientes.' : 'Sin detalle de temas en este intento.');
+    cont.appendChild(det);
+    row.style.cursor = 'pointer';
+    row.onclick = () => { det.style.display = det.style.display === 'none' ? 'block' : 'none'; };
+  };
+
+  const mi = $('misIntentos'); mi.innerHTML = '';
+  if (!mios || !mios.length) mi.innerHTML = '<p class="empty">Todavía no has hecho ningún examen.</p>';
+  (mios || []).forEach(t => filaIntento(mi, t, ''));
 
   if (yo.rol === 'admin') {
     $('resEquipoBox').style.display = 'block';
@@ -780,13 +789,7 @@ async function cargarFormacion() {
       .order('creado_en', { ascending: false }).limit(200);
     const re = $('resEquipo'); re.innerHTML = '';
     if (!todos || !todos.length) re.innerHTML = '<p class="empty">Nadie ha hecho exámenes todavía.</p>';
-    (todos || []).forEach(t => {
-      const row = document.createElement('div'); row.className = 'row';
-      row.innerHTML = `<span class="t">${nombres[t.usuario_id] || '—'} · ${nombresTitulo(t.protocolo_id)}</span>
-        <span class="notaBadge ${t.nota >= 8 ? 'ok' : 'ko'}">${fNota(t.nota)}</span>
-        <small>${new Date(t.creado_en).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</small>`;
-      re.appendChild(row);
-    });
+    (todos || []).forEach(t => filaIntento(re, t, (nombres[t.usuario_id] || '—') + ' · '));
   }
 }
 
