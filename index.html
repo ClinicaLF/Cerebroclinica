@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#10161C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Cerebro digital · Centro Odontológico Laura Fernández</title>
 <style>
   :root{
@@ -164,6 +166,14 @@
     .row{flex-wrap:wrap}
     .row .t{white-space:normal;flex-basis:100%}
     .row small{margin-left:auto}
+  }
+
+  /* abierta como app desde el icono de inicio: si el sistema no informa del
+     hueco de la barra de estado (fallo conocido de iOS), margen mínimo fijo.
+     Va al final para ganar a las reglas de móvil de arriba. */
+  @media (display-mode: standalone){
+    .wrap{padding-top:max(calc(16px + env(safe-area-inset-top)), 56px)}
+    #login{padding-top:max(calc(env(safe-area-inset-top) + 4vh), 56px)}
   }
 </style>
 </head>
