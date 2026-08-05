@@ -480,11 +480,19 @@ async function cargarProtocolos() {
 
   pintarFichas(); pintarFilas();
 }
+/* búsqueda por palabras, sin tildes y sin importar el orden */
+const normalizar = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); /* quita tildes */
+
 function pintarFichas() {
-  const q = $('buscar').value.trim().toLowerCase();
+  const q = $('buscar').value.trim();
+  const palabras = normalizar(q).split(/\s+/).filter(Boolean);
   const esLector = yo.rol === 'lector';
   let lista = protocolos.filter(p => p.publicado || !esLector)
-    .filter(p => !q || (p.titulo + ' ' + (p.descripcion || '') + ' ' + p.contenido).toLowerCase().includes(q));
+    .filter(p => {
+      if (!palabras.length) return true;
+      const txt = normalizar(p.titulo + ' ' + (p.descripcion || '') + ' ' + p.contenido);
+      return palabras.every(w => txt.includes(w));
+    });
 
   if (!esLector) {
     const fg = $('filtroGrupo').value, fe = $('filtroEstado').value;
@@ -498,7 +506,22 @@ function pintarFichas() {
   }
 
   const g = $('fichas'); g.innerHTML = '';
-  $('sinDocs').style.display = lista.length ? 'none' : 'block';
+  if (!lista.length) {
+    $('sinDocs').style.display = 'block';
+    if (palabras.length) {
+      $('sinDocs').innerHTML = 'Ningún protocolo contiene esas palabras.<br>' +
+        '<button class="btn" id="buscarIA" style="margin-top:14px">Pregúntaselo al cerebro</button>';
+      $('buscarIA').onclick = () => {
+        const consulta = q;
+        document.querySelector('nav button[data-t=ask]').click();
+        preguntar(consulta);
+      };
+    } else {
+      $('sinDocs').textContent = 'Todavía no hay protocolos publicados.';
+    }
+  } else {
+    $('sinDocs').style.display = 'none';
+  }
 
   /* agrupar por área (los grupos del catálogo llevan número delante y ordenan primero) */
   const grupos = new Map();
