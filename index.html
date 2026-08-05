@@ -106,6 +106,12 @@
   .card:hover{background:var(--panel2)}
   .card h3{font-size:14.5px;font-weight:600;margin-bottom:3px}
   .card span{font-size:11.5px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase}
+  .card .desc{font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .card .tag{float:right;margin-left:8px;text-transform:none;letter-spacing:0}
+  .card.borrador{border-left-color:var(--line);opacity:.8}
+  .grupoTit{font-family:Georgia,serif;font-weight:normal;font-size:15.5px;color:var(--muted);
+    margin:20px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+  .grupoTit:first-child{margin-top:0}
   .row{display:flex;align-items:center;gap:10px;padding:10px 13px;background:var(--panel);
     border:1px solid var(--line);border-radius:10px;margin-bottom:7px}
   .row .t{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -227,11 +233,23 @@
   </section>
 
   <section id="s-docs">
-    <div class="bar"><input id="buscar" type="text" placeholder="Buscar protocolo…" style="margin:0"></div>
-    <div class="grid" id="fichas"></div>
+    <div class="bar">
+      <input id="buscar" type="text" placeholder="Buscar protocolo…" style="margin:0;flex:1;min-width:150px">
+      <select id="filtroGrupo" class="soloAdmin" style="display:none;margin:0;width:auto;max-width:220px">
+        <option value="">Todos los grupos</option>
+      </select>
+      <select id="filtroEstado" class="soloAdmin" style="display:none;margin:0;width:auto;max-width:170px">
+        <option value="">Todos los estados</option>
+        <option value="aprobado">Aprobados</option>
+        <option value="no_iniciado">No iniciados</option>
+      </select>
+    </div>
+    <p class="muted" id="contadorCat" style="margin:-4px 0 12px"></p>
+    <div id="fichas"></div>
     <div class="empty" id="sinDocs" style="display:none">Todavía no hay protocolos publicados.</div>
     <div id="lector" style="display:none">
       <button class="btn ghost" id="volver" style="margin-bottom:16px">← Volver</button>
+      <button class="btn ghost" id="lEstado" style="display:none;margin:0 0 16px 8px"></button>
       <p class="area" id="lArea"></p>
       <h3 id="lTitulo"></h3>
       <div class="cuerpo" id="lCuerpo"></div>
@@ -317,8 +335,10 @@
       <h2 class="sec" id="fTitulo">Nuevo protocolo</h2>
       <label>Título</label>
       <input id="fT" type="text" placeholder="Ej.: Gestión de urgencias">
-      <label>Área</label>
-      <input id="fA" type="text" placeholder="Ej.: Protocolos clínicos">
+      <label>Área / grupo</label>
+      <input id="fA" type="text" placeholder="Ej.: 3 · Tratamiento y clínica">
+      <label>Descripción (una línea, se ve en la tarjeta)</label>
+      <input id="fD" type="text" placeholder="Ej.: Encargo, recepción y verificación de trabajos de laboratorio.">
       <label>Contenido</label>
       <textarea id="fC" placeholder="Pega aquí el protocolo. Puede ser largo: escribe como hablas al equipo, con pasos claros."></textarea>
       <label>Formación · posición en cada itinerario (vacío = no entra; 1 = el primero que estudiar)</label>
@@ -439,22 +459,72 @@ async function cargarProtocolos() {
   const { data } = await sb.from('protocolos').select('*').order('area').order('titulo');
   protocolos = data || [];
   $('stats').textContent = `CENTRO ODONTOLÓGICO · ${protocolos.filter(p => p.publicado).length} protocolos`;
+
+  /* rellenar el filtro de grupos con las áreas existentes, en orden de catálogo */
+  const sel = $('filtroGrupo'); const antes = sel.value;
+  const areas = [...new Set(protocolos.map(p => p.area || 'General'))].sort((a, b) => {
+    const ma = Math.min(...protocolos.filter(p => (p.area || 'General') === a).map(p => p.orden ?? 999));
+    const mb = Math.min(...protocolos.filter(p => (p.area || 'General') === b).map(p => p.orden ?? 999));
+    return ma - mb || a.localeCompare(b);
+  });
+  sel.innerHTML = '<option value="">Todos los grupos</option>' +
+    areas.map(a => `<option value="${a.replace(/"/g, '&quot;')}"${a === antes ? ' selected' : ''}>${a}</option>`).join('');
+
   pintarFichas(); pintarFilas();
 }
 function pintarFichas() {
   const q = $('buscar').value.trim().toLowerCase();
-  const lista = protocolos.filter(p => p.publicado || yo.rol !== 'lector')
-    .filter(p => !q || (p.titulo + ' ' + p.contenido).toLowerCase().includes(q));
+  const esLector = yo.rol === 'lector';
+  let lista = protocolos.filter(p => p.publicado || !esLector)
+    .filter(p => !q || (p.titulo + ' ' + (p.descripcion || '') + ' ' + p.contenido).toLowerCase().includes(q));
+
+  if (!esLector) {
+    const fg = $('filtroGrupo').value, fe = $('filtroEstado').value;
+    if (fg) lista = lista.filter(p => (p.area || 'General') === fg);
+    if (fe === 'aprobado') lista = lista.filter(p => p.publicado);
+    if (fe === 'no_iniciado') lista = lista.filter(p => !p.publicado);
+    const cat = protocolos.filter(p => p.orden != null);
+    $('contadorCat').textContent = cat.length
+      ? `Catálogo: ${cat.filter(p => p.publicado).length} de ${cat.length} aprobados`
+      : '';
+  }
+
   const g = $('fichas'); g.innerHTML = '';
   $('sinDocs').style.display = lista.length ? 'none' : 'block';
+
+  /* agrupar por área (los grupos del catálogo llevan número delante y ordenan primero) */
+  const grupos = new Map();
   lista.forEach(p => {
-    const d = document.createElement('div'); d.className = 'card';
-    d.innerHTML = `<span>${p.area}</span><h3>${p.titulo}</h3>`;
-    d.onclick = () => abrir(p.id);
-    g.appendChild(d);
+    const k = p.area || 'General';
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(p);
+  });
+  const claves = [...grupos.keys()].sort((a, b) => {
+    const ma = Math.min(...grupos.get(a).map(p => p.orden ?? 999));
+    const mb = Math.min(...grupos.get(b).map(p => p.orden ?? 999));
+    return ma - mb || a.localeCompare(b);
+  });
+  claves.forEach(k => {
+    const items = grupos.get(k).sort((a, b) =>
+      (a.orden ?? 999) - (b.orden ?? 999) || a.titulo.localeCompare(b.titulo));
+    const h = document.createElement('h2'); h.className = 'grupoTit'; h.textContent = k;
+    g.appendChild(h);
+    const grid = document.createElement('div'); grid.className = 'grid';
+    items.forEach(p => {
+      const d = document.createElement('div');
+      d.className = 'card' + (!p.publicado ? ' borrador' : '');
+      const badge = !esLector
+        ? `<span class="tag ${p.publicado ? 'pub' : ''}">${p.publicado ? 'Aprobado' : 'No iniciado'}</span>` : '';
+      d.innerHTML = `${badge}<h3>${p.titulo}</h3>${p.descripcion ? `<p class="desc">${p.descripcion}</p>` : ''}`;
+      d.onclick = () => abrir(p.id);
+      grid.appendChild(d);
+    });
+    g.appendChild(grid);
   });
 }
 $('buscar').oninput = pintarFichas;
+$('filtroGrupo').onchange = pintarFichas;
+$('filtroEstado').onchange = pintarFichas;
 
 /* convierte el texto del protocolo en HTML con estructura:
    "## " título de sección · "### " subtítulo · "- " lista · "**negrita**" */
@@ -487,6 +557,20 @@ function abrir(id) {
   $('lTitulo').textContent = p.titulo;
   $('lCuerpo').innerHTML = md(p.contenido);
   $('lFecha').textContent = 'Actualizado el ' + new Date(p.actualizado_en).toLocaleDateString('es-ES');
+  if (yo.rol === 'admin') {
+    const be = $('lEstado');
+    be.style.display = 'inline-block';
+    be.textContent = p.publicado ? 'Volver a borrador' : '✓ Aprobar como norma';
+    be.onclick = async () => {
+      be.disabled = true;
+      await sb.from('protocolos').update({ publicado: !p.publicado }).eq('id', p.id);
+      be.disabled = false;
+      await cargarProtocolos();
+      abrir(p.id);
+    };
+  } else {
+    $('lEstado').style.display = 'none';
+  }
   $('fichas').style.display = 'none'; $('buscar').parentElement.style.display = 'none';
   $('sugGeneralBox').style.display = 'none'; $('incBox').style.display = 'none';
   $('sugForm').style.display = 'none'; $('sugOk').style.display = 'none';
@@ -636,6 +720,7 @@ function editar(id) {
   const p = id ? protocolos.find(x => x.id === id) : null;
   $('fTitulo').textContent = p ? 'Editar protocolo' : 'Nuevo protocolo';
   $('fT').value = p ? p.titulo : ''; $('fA').value = p ? p.area : '';
+  $('fD').value = p ? (p.descripcion || '') : '';
   $('fC').value = p ? p.contenido : ''; $('fP').checked = p ? p.publicado : false;
   const oR = ordenFormacion(p, 'recepcion-atp'), oH = ordenFormacion(p, 'higienista-auxiliar'), oD = ordenFormacion(p, 'doctor');
   $('fOr').value = oR === null ? '' : oR;
@@ -657,6 +742,7 @@ $('guardar').onclick = async () => {
   const fila = {
     titulo: $('fT').value.trim(),
     area: $('fA').value.trim() || 'General',
+    descripcion: $('fD').value.trim() || null,
     contenido: $('fC').value,
     publicado: $('fP').checked,
     formacion_puestos: ordenes,
