@@ -336,7 +336,8 @@
       <label>Título</label>
       <input id="fT" type="text" placeholder="Ej.: Gestión de urgencias">
       <label>Área / grupo</label>
-      <input id="fA" type="text" placeholder="Ej.: 3 · Tratamiento y clínica">
+      <select id="fA"></select>
+      <input id="fANueva" type="text" placeholder="Nombre del área nueva" style="display:none">
       <label>Descripción (una línea, se ve en la tarjeta)</label>
       <input id="fD" type="text" placeholder="Ej.: Encargo, recepción y verificación de trabajos de laboratorio.">
       <label>Contenido</label>
@@ -397,7 +398,7 @@ const SUPABASE_URL = 'https://gpxvuzjqitystnfmesee.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdweHZ1empxaXR5c3RuZm1lc2VlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3NzgyNjEsImV4cCI6MjEwMTM1NDI2MX0.IkyNRvBh43YLtZ_j4lNlOHI1gO8sUh6yOa4H9OPMGV8';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-let yo = null, protocolos = [], historial = [];
+let yo = null, protocolos = [], historial = [], areasOrdenadas = [];
 
 const $ = id => document.getElementById(id);
 
@@ -469,6 +470,7 @@ async function cargarProtocolos() {
   });
   sel.innerHTML = '<option value="">Todos los grupos</option>' +
     areas.map(a => `<option value="${a.replace(/"/g, '&quot;')}"${a === antes ? ' selected' : ''}>${a}</option>`).join('');
+  areasOrdenadas = areas;
 
   pintarFichas(); pintarFilas();
 }
@@ -719,7 +721,17 @@ function editar(id) {
   editando = id;
   const p = id ? protocolos.find(x => x.id === id) : null;
   $('fTitulo').textContent = p ? 'Editar protocolo' : 'Nuevo protocolo';
-  $('fT').value = p ? p.titulo : ''; $('fA').value = p ? p.area : '';
+  $('fT').value = p ? p.titulo : '';
+  const selA = $('fA');
+  const opciones = [...areasOrdenadas];
+  if (p && p.area && !opciones.includes(p.area)) opciones.push(p.area);
+  selA.innerHTML = opciones.map(a =>
+    `<option value="${a.replace(/"/g, '&quot;')}">${a}</option>`).join('') +
+    '<option value="__nueva__">+ Nueva área…</option>';
+  selA.value = p ? p.area : (opciones[0] || '__nueva__');
+  $('fANueva').value = '';
+  $('fANueva').style.display = selA.value === '__nueva__' ? '' : 'none';
+  selA.onchange = () => { $('fANueva').style.display = selA.value === '__nueva__' ? '' : 'none'; };
   $('fD').value = p ? (p.descripcion || '') : '';
   $('fC').value = p ? p.contenido : ''; $('fP').checked = p ? p.publicado : false;
   const oR = ordenFormacion(p, 'recepcion-atp'), oH = ordenFormacion(p, 'higienista-auxiliar'), oD = ordenFormacion(p, 'doctor');
@@ -741,7 +753,7 @@ $('guardar').onclick = async () => {
   const vD = parseInt($('fOd').value, 10); if (vD >= 1) ordenes['doctor'] = vD;
   const fila = {
     titulo: $('fT').value.trim(),
-    area: $('fA').value.trim() || 'General',
+    area: ($('fA').value === '__nueva__' ? $('fANueva').value.trim() : $('fA').value) || 'General',
     descripcion: $('fD').value.trim() || null,
     contenido: $('fC').value,
     publicado: $('fP').checked,
