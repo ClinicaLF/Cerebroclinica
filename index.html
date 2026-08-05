@@ -158,15 +158,21 @@
   /* ---------- móvil ---------- */
   .askRow{bottom:max(12px, env(safe-area-inset-bottom))}
   @media (max-width:600px){
-    .wrap{padding:calc(10px + env(safe-area-inset-top)) 12px calc(30px + env(safe-area-inset-bottom))}
+    .wrap{padding:calc(10px + env(safe-area-inset-top)) 12px calc(86px + env(safe-area-inset-bottom))}
     header h1{font-size:16.5px}
     header small{font-size:10.5px}
     input,textarea,select,.askRow input{font-size:16px} /* evita el zoom automático de iOS */
-    nav{margin-bottom:14px}
-    nav button{padding:11px 12px;font-size:14px}
+    /* menú como barra de pestañas inferior, estilo app */
+    nav{position:fixed;left:0;right:0;bottom:0;z-index:50;margin:0;
+      background:var(--panel);border-top:1px solid var(--line);border-bottom:none;
+      padding:2px 4px calc(2px + env(safe-area-inset-bottom))}
+    nav button{flex:1 0 auto;text-align:center;padding:11px 9px;font-size:12.5px;
+      border-bottom:none;border-top:2px solid transparent}
+    nav button.on{border-top-color:var(--accent);border-bottom-color:transparent}
     .bubble{max-width:90%;font-size:15px}
+    .askRow{bottom:calc(58px + env(safe-area-inset-bottom))}
     .askRow button{width:42px;height:42px}
-    #hero{padding:5vh 6px 14px}
+    #hero{padding:4vh 6px 14px}
     #lector{padding:16px 15px}
     #lector h3{font-size:19px}
     .row{flex-wrap:wrap}
